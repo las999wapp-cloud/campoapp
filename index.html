@@ -1,0 +1,1779 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#1a2e1a">
+<title>CampoApp — Gestión de Lotes</title>
+<link rel="manifest" href="#" />
+
+<!-- Leaflet CSS -->
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:ital,wght@0,300;0,400;0,500;1,300&display=swap');
+
+  :root {
+    --green-dark: #0f1f0f;
+    --green-deep: #1a2e1a;
+    --green-mid: #2d4a2d;
+    --green-base: #3d6b3d;
+    --green-bright: #5a9e5a;
+    --green-light: #8dc88d;
+    --green-pale: #c8e6c8;
+    --green-ghost: #edf7ed;
+    --soil: #8b6914;
+    --soil-light: #c4a84f;
+    --amber: #d4a017;
+    --red: #c0392b;
+    --text: #f0f4f0;
+    --text-muted: #9ab89a;
+    --surface: #1e301e;
+    --surface2: #243624;
+    --surface3: #2a3e2a;
+    --border: rgba(90,158,90,0.2);
+    --border-bright: rgba(90,158,90,0.5);
+    --radius: 12px;
+    --radius-sm: 8px;
+    --shadow: 0 4px 24px rgba(0,0,0,0.4);
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+
+  body {
+    font-family: 'DM Sans', sans-serif;
+    background: var(--green-dark);
+    color: var(--text);
+    height: 100vh;
+    height: 100dvh;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* ── HEADER ── */
+  .header {
+    background: var(--green-deep);
+    border-bottom: 1px solid var(--border);
+    padding: 12px 16px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-shrink: 0;
+    z-index: 1000;
+  }
+  .header-title {
+    font-family: 'Syne', sans-serif;
+    font-size: 20px;
+    font-weight: 800;
+    letter-spacing: -0.5px;
+    color: var(--green-light);
+  }
+  .header-title span { color: var(--green-bright); }
+  .header-actions { display: flex; gap: 8px; }
+  .btn-icon {
+    width: 36px; height: 36px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer;
+    color: var(--text-muted);
+    font-size: 16px;
+    transition: all 0.15s;
+  }
+  .btn-icon:hover, .btn-icon.active { 
+    background: var(--green-base); 
+    color: var(--text);
+    border-color: var(--border-bright);
+  }
+
+  /* ── MAIN LAYOUT ── */
+  .main {
+    flex: 1;
+    display: flex;
+    overflow: hidden;
+    position: relative;
+  }
+
+  /* ── MAP ── */
+  #map {
+    flex: 1;
+    min-height: 0;
+    background: #1a2b1a;
+  }
+  .leaflet-container {
+    background: #1a2b1a !important;
+    font-family: 'DM Sans', sans-serif;
+  }
+
+  /* ── SIDEBAR ── */
+  .sidebar {
+    width: 320px;
+    flex-shrink: 0;
+    background: var(--green-deep);
+    border-left: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    transition: transform 0.3s cubic-bezier(0.4,0,0.2,1);
+  }
+  @media (max-width: 768px) {
+    .sidebar {
+      position: absolute;
+      right: 0; top: 0; bottom: 0;
+      z-index: 500;
+      width: 100%;
+      transform: translateX(100%);
+    }
+    .sidebar.open { transform: translateX(0); }
+  }
+
+  .sidebar-header {
+    padding: 16px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-shrink: 0;
+  }
+  .sidebar-title {
+    font-family: 'Syne', sans-serif;
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--green-light);
+  }
+
+  .sidebar-content {
+    flex: 1;
+    overflow-y: auto;
+    padding: 12px;
+    scrollbar-width: thin;
+    scrollbar-color: var(--green-mid) transparent;
+  }
+
+  /* ── TABS ── */
+  .tabs {
+    display: flex;
+    background: var(--surface);
+    border-radius: var(--radius-sm);
+    padding: 3px;
+    margin-bottom: 12px;
+    flex-shrink: 0;
+  }
+  .tab {
+    flex: 1;
+    padding: 7px 4px;
+    text-align: center;
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--text-muted);
+    cursor: pointer;
+    border-radius: 6px;
+    transition: all 0.15s;
+  }
+  .tab.active {
+    background: var(--green-base);
+    color: var(--text);
+  }
+
+  /* ── LOT CARDS ── */
+  .lot-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 12px;
+    margin-bottom: 8px;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .lot-card:hover { border-color: var(--border-bright); background: var(--surface2); }
+  .lot-card.selected { border-color: var(--green-bright); background: var(--surface2); }
+
+  .lot-card-header { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+  .lot-badge {
+    width: 28px; height: 28px;
+    background: var(--green-mid);
+    border-radius: 6px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--green-light);
+    flex-shrink: 0;
+  }
+  .lot-name {
+    font-weight: 500;
+    font-size: 14px;
+    line-height: 1.2;
+  }
+  .lot-area {
+    font-size: 11px;
+    color: var(--text-muted);
+    margin-left: auto;
+    flex-shrink: 0;
+  }
+  .lot-status {
+    display: flex;
+    gap: 4px;
+    flex-wrap: wrap;
+  }
+  .tag {
+    padding: 2px 8px;
+    border-radius: 20px;
+    font-size: 10px;
+    font-weight: 500;
+    background: var(--surface3);
+    color: var(--text-muted);
+    border: 1px solid var(--border);
+  }
+  .tag.green { background: rgba(61,107,61,0.3); color: var(--green-bright); border-color: rgba(61,107,61,0.5); }
+  .tag.amber { background: rgba(212,160,23,0.15); color: var(--amber); border-color: rgba(212,160,23,0.3); }
+  .tag.red { background: rgba(192,57,43,0.15); color: var(--red); border-color: rgba(192,57,43,0.3); }
+
+  /* ── DETAIL PANEL ── */
+  .detail-panel {
+    display: none;
+    flex-direction: column;
+    height: 100%;
+  }
+  .detail-panel.active { display: flex; }
+
+  .detail-lot-title {
+    font-family: 'Syne', sans-serif;
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--green-light);
+    margin-bottom: 4px;
+  }
+  .detail-lot-meta {
+    font-size: 12px;
+    color: var(--text-muted);
+    margin-bottom: 16px;
+  }
+
+  /* ── FORM ── */
+  .form-section {
+    margin-bottom: 16px;
+  }
+  .form-label {
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    margin-bottom: 6px;
+    display: block;
+  }
+  .form-input, .form-select, .form-textarea {
+    width: 100%;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 10px 12px;
+    color: var(--text);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 14px;
+    transition: border-color 0.15s;
+    outline: none;
+    appearance: none;
+  }
+  .form-input:focus, .form-select:focus, .form-textarea:focus {
+    border-color: var(--green-bright);
+  }
+  .form-textarea {
+    resize: vertical;
+    min-height: 80px;
+    line-height: 1.5;
+  }
+  .form-select option { background: var(--green-deep); }
+
+  /* ── STT Button ── */
+  .stt-row {
+    display: flex;
+    gap: 8px;
+    align-items: flex-start;
+  }
+  .stt-row .form-textarea { flex: 1; }
+  .btn-mic {
+    width: 42px;
+    height: 42px;
+    flex-shrink: 0;
+    margin-top: 0;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    border-radius: var(--radius-sm);
+    color: var(--text-muted);
+    font-size: 18px;
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    transition: all 0.15s;
+  }
+  .btn-mic:hover { border-color: var(--green-bright); color: var(--green-bright); }
+  .btn-mic.recording {
+    background: rgba(192,57,43,0.2);
+    border-color: var(--red);
+    color: var(--red);
+    animation: pulse 1s infinite;
+  }
+  @keyframes pulse {
+    0%,100% { box-shadow: 0 0 0 0 rgba(192,57,43,0.4); }
+    50% { box-shadow: 0 0 0 6px rgba(192,57,43,0); }
+  }
+
+  /* ── BUTTONS ── */
+  .btn {
+    padding: 10px 16px;
+    border-radius: var(--radius-sm);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    border: 1px solid transparent;
+    transition: all 0.15s;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .btn-primary {
+    background: var(--green-base);
+    color: var(--text);
+    border-color: var(--green-bright);
+  }
+  .btn-primary:hover { background: var(--green-bright); }
+  .btn-secondary {
+    background: var(--surface);
+    color: var(--text-muted);
+    border-color: var(--border);
+  }
+  .btn-secondary:hover { border-color: var(--border-bright); color: var(--text); }
+  .btn-danger {
+    background: rgba(192,57,43,0.15);
+    color: var(--red);
+    border-color: rgba(192,57,43,0.3);
+  }
+
+  .btn-row {
+    display: flex;
+    gap: 8px;
+    margin-top: 8px;
+    flex-wrap: wrap;
+  }
+  .btn-row .btn { flex: 1; justify-content: center; }
+
+  /* ── FILE UPLOAD ── */
+  .upload-zone {
+    border: 2px dashed var(--border);
+    border-radius: var(--radius);
+    padding: 24px 16px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.15s;
+    color: var(--text-muted);
+    font-size: 13px;
+  }
+  .upload-zone:hover, .upload-zone.drag-over {
+    border-color: var(--green-bright);
+    background: rgba(90,158,90,0.05);
+    color: var(--green-light);
+  }
+  .upload-zone-icon { font-size: 28px; margin-bottom: 8px; }
+  .upload-zone-text { font-weight: 500; }
+  .upload-zone-sub { font-size: 11px; margin-top: 4px; opacity: 0.7; }
+
+  /* ── RECORDS ── */
+  .record-item {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 10px 12px;
+    margin-bottom: 6px;
+    font-size: 13px;
+  }
+  .record-item-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 4px;
+  }
+  .record-date { font-size: 11px; color: var(--text-muted); }
+  .record-author {
+    font-size: 11px;
+    color: var(--green-light);
+    font-weight: 500;
+  }
+  .record-text { color: var(--text); line-height: 1.5; }
+
+  /* ── EXPORT ── */
+  .export-options { display: flex; flex-direction: column; gap: 8px; }
+  .export-btn {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 12px 16px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    color: var(--text);
+    font-family: 'DM Sans', sans-serif;
+    transition: all 0.15s;
+    text-align: left;
+  }
+  .export-btn:hover { border-color: var(--border-bright); background: var(--surface2); }
+  .export-icon { font-size: 20px; flex-shrink: 0; }
+  .export-label { font-size: 14px; font-weight: 500; }
+  .export-desc { font-size: 11px; color: var(--text-muted); }
+
+  /* ── STATUS BAR ── */
+  .status-bar {
+    background: var(--green-deep);
+    border-top: 1px solid var(--border);
+    padding: 6px 16px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    font-size: 11px;
+    color: var(--text-muted);
+    flex-shrink: 0;
+  }
+  .status-dot {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: var(--green-bright);
+    flex-shrink: 0;
+  }
+  .status-dot.offline { background: var(--amber); }
+
+  /* ── MAP CONTROLS ── */
+  .map-toolbar {
+    position: absolute;
+    top: 12px;
+    left: 12px;
+    z-index: 400;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .map-btn {
+    background: var(--green-deep);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 8px 12px;
+    cursor: pointer;
+    color: var(--text-muted);
+    font-size: 12px;
+    font-family: 'DM Sans', sans-serif;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    transition: all 0.15s;
+    white-space: nowrap;
+  }
+  .map-btn:hover { border-color: var(--border-bright); color: var(--text); background: var(--surface2); }
+
+  /* ── TOAST ── */
+  .toast-container {
+    position: fixed;
+    bottom: 60px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 9999;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    pointer-events: none;
+  }
+  .toast {
+    background: var(--surface2);
+    border: 1px solid var(--border-bright);
+    border-radius: var(--radius);
+    padding: 10px 16px;
+    font-size: 13px;
+    color: var(--text);
+    opacity: 0;
+    transform: translateY(10px);
+    transition: all 0.25s;
+    white-space: nowrap;
+  }
+  .toast.show { opacity: 1; transform: translateY(0); }
+
+  /* ── MODAL ── */
+  .modal-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.7);
+    z-index: 2000;
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+  }
+  .modal-overlay.open { display: flex; }
+  .modal {
+    background: var(--green-deep);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 24px;
+    max-width: 420px;
+    width: 100%;
+    box-shadow: var(--shadow);
+  }
+  .modal-title {
+    font-family: 'Syne', sans-serif;
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--green-light);
+    margin-bottom: 16px;
+  }
+
+  /* ── DIVIDER ── */
+  .divider {
+    height: 1px;
+    background: var(--border);
+    margin: 16px 0;
+  }
+
+  /* ── LEGEND ── */
+  .legend {
+    position: absolute;
+    bottom: 40px;
+    left: 12px;
+    z-index: 400;
+    background: var(--green-deep);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 8px 12px;
+    font-size: 11px;
+    color: var(--text-muted);
+  }
+  .legend-item { display: flex; align-items: center; gap: 6px; margin-bottom: 4px; }
+  .legend-item:last-child { margin-bottom: 0; }
+  .legend-color { width: 12px; height: 12px; border-radius: 2px; }
+
+  /* ── RESPONSIVE ── */
+  @media (max-width: 768px) {
+    .map-toolbar { top: 8px; left: 8px; }
+    .legend { bottom: 48px; }
+  }
+
+  /* Scrollbar */
+  ::-webkit-scrollbar { width: 4px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--green-mid); border-radius: 2px; }
+
+  .hidden { display: none !important; }
+
+  /* Progress bar for loading */
+  .progress-bar {
+    height: 3px;
+    background: var(--green-bright);
+    width: 0;
+    transition: width 0.3s;
+    border-radius: 2px;
+  }
+
+  .stt-status {
+    font-size: 11px;
+    color: var(--text-muted);
+    margin-top: 4px;
+    min-height: 16px;
+    transition: color 0.2s;
+  }
+  .stt-status.active { color: var(--red); }
+  .stt-status.success { color: var(--green-bright); }
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<div class="header">
+  <div class="header-title">🌿 Campo<span>App</span></div>
+  <div class="header-actions">
+    <div class="btn-icon" id="btn-upload-header" title="Cargar archivo KMZ/SHP/GeoJSON">📁</div>
+    <div class="btn-icon" id="btn-export-header" title="Exportar datos">📤</div>
+    <div class="btn-icon" id="btn-toggle-sidebar" title="Panel de lotes">☰</div>
+  </div>
+</div>
+
+<!-- MAIN -->
+<div class="main">
+  <!-- MAP -->
+  <div id="map">
+    <!-- Map toolbar -->
+    <div class="map-toolbar">
+      <button class="map-btn" id="btn-add-lot">＋ Nuevo lote</button>
+      <button class="map-btn" id="btn-basemap">🗺 Capa base</button>
+      <button class="map-btn" id="btn-locate">📍 Mi ubicación</button>
+    </div>
+
+    <!-- Legend -->
+    <div class="legend">
+      <div class="legend-item"><div class="legend-color" style="background:#5a9e5a"></div> Sin datos</div>
+      <div class="legend-item"><div class="legend-color" style="background:#d4a017"></div> Datos parciales</div>
+      <div class="legend-item"><div class="legend-color" style="background:#3d6b3d"></div> Completo</div>
+    </div>
+  </div>
+
+  <!-- SIDEBAR -->
+  <div class="sidebar" id="sidebar">
+    <!-- List panel -->
+    <div id="panel-list" style="display:flex;flex-direction:column;height:100%">
+      <div class="sidebar-header">
+        <div class="sidebar-title">📋 Lotes de la finca</div>
+        <div style="font-size:11px;color:var(--text-muted)" id="lot-count">0 lotes</div>
+      </div>
+      <div style="padding:12px 12px 0">
+        <div class="tabs" id="main-tabs">
+          <div class="tab active" data-tab="lots">Lotes</div>
+          <div class="tab" data-tab="records">Registros</div>
+          <div class="tab" data-tab="import">Importar</div>
+        </div>
+      </div>
+
+      <!-- TAB: Lots -->
+      <div class="sidebar-content" id="tab-lots">
+        <div id="lots-list"></div>
+        <div id="lots-empty" style="text-align:center;padding:32px 16px;color:var(--text-muted);font-size:13px">
+          <div style="font-size:32px;margin-bottom:8px">🗺</div>
+          <div>No hay lotes cargados</div>
+          <div style="font-size:11px;margin-top:4px">Importa un archivo o crea lotes manualmente</div>
+        </div>
+      </div>
+
+      <!-- TAB: Records -->
+      <div class="sidebar-content hidden" id="tab-records">
+        <div id="records-list"></div>
+        <div id="records-empty" style="text-align:center;padding:32px 16px;color:var(--text-muted);font-size:13px">
+          <div style="font-size:32px;margin-bottom:8px">📝</div>
+          <div>No hay registros aún</div>
+        </div>
+      </div>
+
+      <!-- TAB: Import -->
+      <div class="sidebar-content hidden" id="tab-import">
+        <div class="upload-zone" id="upload-zone">
+          <div class="upload-zone-icon">📂</div>
+          <div class="upload-zone-text">Arrastrá tu archivo aquí</div>
+          <div class="upload-zone-sub">KMZ · KML · GeoJSON · SHP (+ zip)</div>
+        </div>
+        <input type="file" id="file-input" accept=".kmz,.kml,.geojson,.json,.zip,.shp" style="display:none" multiple>
+        <div style="margin-top:12px">
+          <button class="btn btn-primary" style="width:100%" onclick="document.getElementById('file-input').click()">
+            📁 Seleccionar archivo
+          </button>
+        </div>
+        <div class="divider"></div>
+        <div style="font-size:12px;color:var(--text-muted);margin-bottom:8px;font-weight:500">Datos de ejemplo</div>
+        <button class="btn btn-secondary" style="width:100%" id="btn-load-demo">🌾 Cargar finca demo</button>
+        <div class="divider"></div>
+        <div style="font-size:12px;color:var(--text-muted);margin-bottom:8px;font-weight:500">Crear lote manual</div>
+        <div class="form-section">
+          <label class="form-label">Nombre del lote</label>
+          <input type="text" class="form-input" id="new-lot-name" placeholder="Ej: Lote Norte A">
+        </div>
+        <button class="btn btn-primary" style="width:100%" id="btn-create-manual">
+          ✏️ Dibujar en mapa
+        </button>
+      </div>
+    </div>
+
+    <!-- Detail panel -->
+    <div id="panel-detail" style="display:none;flex-direction:column;height:100%">
+      <div class="sidebar-header">
+        <div style="display:flex;align-items:center;gap:8px">
+          <div class="btn-icon" id="btn-back" style="width:28px;height:28px;font-size:13px">←</div>
+          <div class="sidebar-title" id="detail-lot-name">Lote</div>
+        </div>
+        <div class="btn-icon" id="btn-delete-lot" title="Eliminar lote" style="font-size:13px">🗑</div>
+      </div>
+      <div class="sidebar-content">
+        <div class="detail-lot-meta" id="detail-lot-meta"></div>
+
+        <!-- Tabs within detail -->
+        <div class="tabs" id="detail-tabs">
+          <div class="tab active" data-dtab="observations">Observaciones</div>
+          <div class="tab" data-dtab="data">Datos técnicos</div>
+          <div class="tab" data-dtab="photos">Fotos</div>
+        </div>
+
+        <!-- OBSERVATIONS -->
+        <div id="dtab-observations">
+          <div class="form-section">
+            <label class="form-label">🎙 Observación (voz o texto)</label>
+            <div class="stt-row">
+              <textarea class="form-textarea" id="obs-text" placeholder="Escribe o usa el micrófono..."></textarea>
+              <button class="btn-mic" id="btn-mic" title="Hablar">🎙</button>
+            </div>
+            <div class="stt-status" id="stt-status">Toca el micrófono para dictar</div>
+          </div>
+          <div class="form-section">
+            <label class="form-label">Categoría</label>
+            <select class="form-select" id="obs-category">
+              <option value="general">General</option>
+              <option value="plagas">Plagas / Enfermedades</option>
+              <option value="riego">Riego</option>
+              <option value="cosecha">Cosecha</option>
+              <option value="suelo">Suelo</option>
+              <option value="siembra">Siembra</option>
+              <option value="incidente">Incidente</option>
+            </select>
+          </div>
+          <div class="form-section">
+            <label class="form-label">Urgencia</label>
+            <select class="form-select" id="obs-urgency">
+              <option value="normal">Normal</option>
+              <option value="media">Media</option>
+              <option value="alta">Alta</option>
+            </select>
+          </div>
+          <div class="btn-row">
+            <button class="btn btn-primary" id="btn-save-obs">💾 Guardar</button>
+            <button class="btn btn-secondary" id="btn-clear-obs">Limpiar</button>
+          </div>
+
+          <div class="divider"></div>
+          <div style="font-size:11px;color:var(--text-muted);font-weight:500;margin-bottom:8px;text-transform:uppercase;letter-spacing:0.5px">Historial del lote</div>
+          <div id="lot-history"></div>
+          <div id="lot-history-empty" style="color:var(--text-muted);font-size:12px;text-align:center;padding:16px">Sin observaciones aún</div>
+        </div>
+
+        <!-- DATOS TÉCNICOS -->
+        <div id="dtab-data" class="hidden">
+          <div class="form-section">
+            <label class="form-label">Cultivo actual</label>
+            <select class="form-select" id="data-crop">
+              <option value="">-- Seleccionar --</option>
+              <option>Soja</option><option>Maíz</option><option>Trigo</option>
+              <option>Girasol</option><option>Sorgo</option><option>Algodón</option>
+              <option>Papa</option><option>Caña de azúcar</option><option>Vid</option>
+              <option>Tabaco</option><option>Poroto</option><option>Pimiento</option>
+            </select>
+          </div>
+          <div class="form-section">
+            <label class="form-label">Fecha de siembra</label>
+            <input type="date" class="form-input" id="data-plant-date">
+          </div>
+          <div class="form-section">
+            <label class="form-label">Variedad / Híbrido</label>
+            <input type="text" class="form-input" id="data-variety" placeholder="Ej: DM 4615">
+          </div>
+          <div class="form-section">
+            <label class="form-label">Estado fenológico</label>
+            <select class="form-select" id="data-phenology">
+              <option value="">-- Seleccionar --</option>
+              <option>Emergencia</option><option>Vegetativo</option><option>Floración</option>
+              <option>Fructificación</option><option>Maduración</option><option>Cosechado</option>
+            </select>
+          </div>
+          <div class="form-section">
+            <label class="form-label">Rendimiento esperado (kg/ha)</label>
+            <input type="number" class="form-input" id="data-yield" placeholder="0">
+          </div>
+          <div class="form-section">
+            <label class="form-label">Responsable</label>
+            <input type="text" class="form-input" id="data-owner" placeholder="Nombre del encargado">
+          </div>
+          <div class="form-section">
+            <label class="form-label">Notas técnicas</label>
+            <div class="stt-row">
+              <textarea class="form-textarea" id="data-notes" placeholder="Notas adicionales..."></textarea>
+              <button class="btn-mic data-mic" data-target="data-notes" title="Dictar">🎙</button>
+            </div>
+          </div>
+          <div class="btn-row">
+            <button class="btn btn-primary" id="btn-save-data">💾 Guardar datos</button>
+          </div>
+        </div>
+
+        <!-- FOTOS -->
+        <div id="dtab-photos" class="hidden">
+          <div style="text-align:center;padding:16px 0;color:var(--text-muted);font-size:13px">
+            <div style="font-size:28px;margin-bottom:8px">📷</div>
+            <div>Adjuntar fotos del lote</div>
+          </div>
+          <input type="file" id="photo-input" accept="image/*" capture="environment" multiple style="display:none">
+          <button class="btn btn-secondary" style="width:100%;margin-bottom:8px" onclick="document.getElementById('photo-input').click()">
+            📷 Cámara / Galería
+          </button>
+          <div id="photo-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- STATUS BAR -->
+<div class="status-bar">
+  <div class="status-dot" id="status-dot"></div>
+  <span id="status-text">Listo</span>
+  <div style="margin-left:auto;display:flex;gap:16px">
+    <span id="status-lots">0 lotes</span>
+    <span id="status-records">0 registros</span>
+  </div>
+</div>
+
+<!-- TOAST -->
+<div class="toast-container" id="toast-container"></div>
+
+<!-- MODAL: Export -->
+<div class="modal-overlay" id="modal-export">
+  <div class="modal">
+    <div class="modal-title">📤 Exportar datos</div>
+    <div class="export-options">
+      <button class="export-btn" id="exp-json">
+        <span class="export-icon">📄</span>
+        <div><div class="export-label">GeoJSON completo</div><div class="export-desc">Lotes + todos los registros</div></div>
+      </button>
+      <button class="export-btn" id="exp-csv">
+        <span class="export-icon">📊</span>
+        <div><div class="export-label">CSV de registros</div><div class="export-desc">Para Excel / Google Sheets</div></div>
+      </button>
+      <button class="export-btn" id="exp-kml">
+        <span class="export-icon">🗺</span>
+        <div><div class="export-label">KML para Google Earth</div><div class="export-desc">Lotes con observaciones</div></div>
+      </button>
+      <button class="export-btn" id="exp-share">
+        <span class="export-icon">🔗</span>
+        <div><div class="export-label">Copiar JSON al portapapeles</div><div class="export-desc">Compartir con compañeros</div></div>
+      </button>
+    </div>
+    <div class="btn-row" style="margin-top:16px">
+      <button class="btn btn-secondary" id="btn-close-export">Cerrar</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: New lot drawing -->
+<div class="modal-overlay" id="modal-drawing">
+  <div class="modal">
+    <div class="modal-title">✏️ Modo dibujo</div>
+    <div style="font-size:13px;color:var(--text-muted);margin-bottom:16px">
+      Hacé clic en el mapa para dibujar el polígono del lote. Doble clic para finalizar.
+    </div>
+    <div class="form-section">
+      <label class="form-label">Nombre del lote</label>
+      <input type="text" class="form-input" id="draw-lot-name" placeholder="Lote Norte A">
+    </div>
+    <div class="btn-row">
+      <button class="btn btn-primary" id="btn-start-drawing">🖊 Comenzar</button>
+      <button class="btn btn-secondary" id="btn-cancel-drawing">Cancelar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Scripts -->
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://unpkg.com/@tmcw/togeojson@5.8.0/dist/togeojson.umd.js"></script>
+<script src="https://unpkg.com/jszip@3.10.1/dist/jszip.min.js"></script>
+<script>
+// ═══════════════════════════════════════════════════════════════
+//  ESTADO GLOBAL
+// ═══════════════════════════════════════════════════════════════
+const STATE = {
+  lots: [],       // { id, name, geojson, data:{}, observations:[], color, area }
+  records: [],    // all observations across lots
+  selectedLot: null,
+  basemap: 0,     // cycle through layers
+  isOnline: navigator.onLine,
+  recording: false,
+  recognition: null,
+  drawMode: false,
+  drawPoints: [],
+  drawPolyline: null
+};
+
+const STORAGE_KEY = 'campoapp_v1';
+
+// ═══════════════════════════════════════════════════════════════
+//  INIT MAP
+// ═══════════════════════════════════════════════════════════════
+const map = L.map('map', {
+  center: [-24.8, -65.4],
+  zoom: 13,
+  zoomControl: false,
+  attributionControl: false
+});
+
+L.control.zoom({ position: 'bottomright' }).addTo(map);
+L.control.attribution({ position: 'bottomleft', prefix: false }).addTo(map);
+
+const basemaps = [
+  {
+    name: '🗺 OSM Estándar',
+    layer: L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '© OpenStreetMap',
+      maxZoom: 19
+    })
+  },
+  {
+    name: '🛰 Satélite',
+    layer: L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+      attribution: '© Esri',
+      maxZoom: 19
+    })
+  },
+  {
+    name: '🌄 Terrain',
+    layer: L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', {
+      attribution: '© OpenTopoMap',
+      maxZoom: 17
+    })
+  }
+];
+
+basemaps[0].layer.addTo(map);
+
+// ═══════════════════════════════════════════════════════════════
+//  LAYERS
+// ═══════════════════════════════════════════════════════════════
+const lotsLayer = L.featureGroup().addTo(map);
+
+function getLotColor(lot) {
+  if (!lot.observations || lot.observations.length === 0) return '#5a9e5a';
+  if (lot.data && Object.keys(lot.data).length > 2) return '#3d6b3d';
+  return '#d4a017';
+}
+
+function renderLots() {
+  lotsLayer.clearLayers();
+  STATE.lots.forEach(lot => {
+    const color = getLotColor(lot);
+    try {
+      const layer = L.geoJSON(lot.geojson, {
+        style: {
+          color: color,
+          fillColor: color,
+          fillOpacity: lot.id === STATE.selectedLot ? 0.35 : 0.15,
+          weight: lot.id === STATE.selectedLot ? 2.5 : 1.5,
+          dashArray: null
+        }
+      });
+
+      // Label
+      try {
+        const bounds = layer.getBounds();
+        const center = bounds.getCenter();
+        const icon = L.divIcon({
+          html: `<div style="
+            background:rgba(15,31,15,0.85);
+            border:1px solid ${color};
+            color:${color};
+            padding:2px 7px;
+            border-radius:20px;
+            font-size:11px;
+            font-weight:600;
+            white-space:nowrap;
+            font-family:DM Sans,sans-serif;
+          ">${lot.name}</div>`,
+          className: '',
+          iconAnchor: [0, 0]
+        });
+        L.marker(center, { icon, interactive: false }).addTo(lotsLayer);
+      } catch(e){}
+
+      layer.on('click', () => openLotDetail(lot.id));
+      layer.bindTooltip(`<b>${lot.name}</b><br>${lot.area ? lot.area.toFixed(1)+' ha' : ''}`, {
+        sticky: true,
+        className: 'lot-tooltip'
+      });
+
+      layer.addTo(lotsLayer);
+    } catch(e) {
+      console.warn('Error rendering lot', lot.name, e);
+    }
+  });
+  updateStatusBar();
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  LOT LIST UI
+// ═══════════════════════════════════════════════════════════════
+function renderLotList() {
+  const list = document.getElementById('lots-list');
+  const empty = document.getElementById('lots-empty');
+  const count = document.getElementById('lot-count');
+
+  count.textContent = `${STATE.lots.length} lote${STATE.lots.length !== 1 ? 's' : ''}`;
+
+  if (STATE.lots.length === 0) {
+    list.innerHTML = '';
+    empty.style.display = 'block';
+    return;
+  }
+  empty.style.display = 'none';
+
+  list.innerHTML = STATE.lots.map(lot => {
+    const obsCount = (lot.observations || []).length;
+    const hasData = lot.data && lot.data.crop;
+    const color = getLotColor(lot);
+    const urgentObs = (lot.observations || []).filter(o => o.urgency === 'alta');
+    return `
+    <div class="lot-card${lot.id === STATE.selectedLot ? ' selected' : ''}" onclick="openLotDetail('${lot.id}')">
+      <div class="lot-card-header">
+        <div class="lot-badge" style="background:${color}22;color:${color};border:1px solid ${color}55">
+          ${lot.name.slice(0,2).toUpperCase()}
+        </div>
+        <div>
+          <div class="lot-name">${lot.name}</div>
+          ${lot.area ? `<div style="font-size:11px;color:var(--text-muted)">${lot.area.toFixed(2)} ha</div>` : ''}
+        </div>
+        <div class="lot-area">${obsCount} obs.</div>
+      </div>
+      <div class="lot-status">
+        ${hasData ? `<span class="tag green">Datos OK</span>` : `<span class="tag">Sin datos</span>`}
+        ${obsCount > 0 ? `<span class="tag amber">${obsCount} obs</span>` : ''}
+        ${urgentObs.length > 0 ? `<span class="tag red">⚠ Urgente</span>` : ''}
+        ${lot.data && lot.data.crop ? `<span class="tag green">${lot.data.crop}</span>` : ''}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function renderRecordsList() {
+  const list = document.getElementById('records-list');
+  const empty = document.getElementById('records-empty');
+  const all = [];
+  STATE.lots.forEach(lot => {
+    (lot.observations || []).forEach(obs => {
+      all.push({ ...obs, lotName: lot.name });
+    });
+  });
+  all.sort((a,b) => new Date(b.date) - new Date(a.date));
+
+  if (all.length === 0) {
+    list.innerHTML = '';
+    empty.style.display = 'block';
+    return;
+  }
+  empty.style.display = 'none';
+
+  list.innerHTML = all.map(obs => `
+    <div class="record-item">
+      <div class="record-item-header">
+        <span style="font-weight:500;font-size:12px;color:var(--green-light)">${obs.lotName}</span>
+        <span class="tag ${obs.urgency === 'alta' ? 'red' : obs.urgency === 'media' ? 'amber' : ''}">${obs.category}</span>
+      </div>
+      <div class="record-text">${obs.text}</div>
+      <div style="display:flex;justify-content:space-between;margin-top:6px">
+        <span class="record-date">${formatDate(obs.date)}</span>
+        <span class="record-author">${obs.author || 'Campo'}</span>
+      </div>
+    </div>
+  `).join('');
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  LOT DETAIL
+// ═══════════════════════════════════════════════════════════════
+function openLotDetail(id) {
+  STATE.selectedLot = id;
+  const lot = STATE.lots.find(l => l.id === id);
+  if (!lot) return;
+
+  document.getElementById('panel-list').style.display = 'none';
+  document.getElementById('panel-detail').style.display = 'flex';
+
+  document.getElementById('detail-lot-name').textContent = lot.name;
+  document.getElementById('detail-lot-meta').textContent =
+    `${lot.area ? lot.area.toFixed(2)+' ha' : ''} · ${(lot.observations||[]).length} observaciones`;
+
+  // Fill technical data
+  if (lot.data) {
+    ['crop','plant-date','variety','phenology','yield','owner','notes'].forEach(f => {
+      const el = document.getElementById('data-'+f);
+      if (el) el.value = lot.data[f.replace('-','_')] || '';
+    });
+  }
+
+  renderLotHistory(lot);
+  renderLots();
+  renderLotList();
+
+  // Open sidebar on mobile
+  document.getElementById('sidebar').classList.add('open');
+
+  // Zoom to lot
+  try {
+    const layer = L.geoJSON(lot.geojson);
+    map.flyToBounds(layer.getBounds(), { padding: [40,40], duration: 0.8 });
+  } catch(e){}
+}
+
+function renderLotHistory(lot) {
+  const hist = document.getElementById('lot-history');
+  const empty = document.getElementById('lot-history-empty');
+  const obs = lot.observations || [];
+
+  if (obs.length === 0) {
+    hist.innerHTML = '';
+    empty.style.display = 'block';
+    return;
+  }
+  empty.style.display = 'none';
+  const sorted = [...obs].sort((a,b) => new Date(b.date) - new Date(a.date));
+  hist.innerHTML = sorted.map(o => `
+    <div class="record-item">
+      <div class="record-item-header">
+        <span class="tag ${o.urgency === 'alta' ? 'red' : o.urgency === 'media' ? 'amber' : ''}">${o.category}</span>
+        <span class="record-date">${formatDate(o.date)}</span>
+      </div>
+      <div class="record-text" style="margin-top:4px">${o.text}</div>
+      ${o.author ? `<div class="record-author" style="margin-top:4px">— ${o.author}</div>` : ''}
+    </div>
+  `).join('');
+}
+
+function closeLotDetail() {
+  STATE.selectedLot = null;
+  document.getElementById('panel-list').style.display = 'flex';
+  document.getElementById('panel-detail').style.display = 'none';
+  renderLots();
+  renderLotList();
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  SAVE OBSERVATION
+// ═══════════════════════════════════════════════════════════════
+document.getElementById('btn-save-obs').addEventListener('click', () => {
+  const lot = STATE.lots.find(l => l.id === STATE.selectedLot);
+  if (!lot) return;
+  const text = document.getElementById('obs-text').value.trim();
+  if (!text) { showToast('⚠ Escribí o dictá una observación'); return; }
+
+  const obs = {
+    id: Date.now().toString(),
+    text,
+    category: document.getElementById('obs-category').value,
+    urgency: document.getElementById('obs-urgency').value,
+    date: new Date().toISOString(),
+    author: 'Usuario'
+  };
+  if (!lot.observations) lot.observations = [];
+  lot.observations.push(obs);
+
+  document.getElementById('obs-text').value = '';
+  renderLotHistory(lot);
+  renderLots();
+  renderLotList();
+  renderRecordsList();
+  saveState();
+  showToast('✅ Observación guardada');
+  updateStatusBar();
+});
+
+document.getElementById('btn-clear-obs').addEventListener('click', () => {
+  document.getElementById('obs-text').value = '';
+});
+
+// Save technical data
+document.getElementById('btn-save-data').addEventListener('click', () => {
+  const lot = STATE.lots.find(l => l.id === STATE.selectedLot);
+  if (!lot) return;
+  lot.data = {
+    crop: document.getElementById('data-crop').value,
+    plant_date: document.getElementById('data-plant-date').value,
+    variety: document.getElementById('data-variety').value,
+    phenology: document.getElementById('data-phenology').value,
+    yield: document.getElementById('data-yield').value,
+    owner: document.getElementById('data-owner').value,
+    notes: document.getElementById('data-notes').value,
+  };
+  renderLots();
+  renderLotList();
+  saveState();
+  showToast('✅ Datos técnicos guardados');
+});
+
+// ═══════════════════════════════════════════════════════════════
+//  SPEECH TO TEXT
+// ═══════════════════════════════════════════════════════════════
+function setupSpeech(btnId, targetId, statusId) {
+  const btn = document.getElementById(btnId);
+  const target = document.getElementById(targetId);
+  const statusEl = statusId ? document.getElementById(statusId) : null;
+
+  if (!btn || !target) return;
+
+  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+
+  if (!SpeechRecognition) {
+    btn.title = 'Reconocimiento de voz no soportado en este navegador';
+    btn.style.opacity = '0.4';
+    btn.style.cursor = 'not-allowed';
+    if (statusEl) statusEl.textContent = 'No disponible en este navegador (usa Chrome)';
+    return;
+  }
+
+  let recog = null;
+  let active = false;
+
+  btn.addEventListener('click', () => {
+    if (active) {
+      recog && recog.stop();
+      return;
+    }
+
+    recog = new SpeechRecognition();
+    recog.lang = 'es-AR';
+    recog.continuous = true;
+    recog.interimResults = true;
+    recog.maxAlternatives = 1;
+
+    let finalTranscript = target.value;
+    let interimTranscript = '';
+
+    recog.onstart = () => {
+      active = true;
+      btn.classList.add('recording');
+      if (statusEl) { statusEl.textContent = '🔴 Escuchando...'; statusEl.className = 'stt-status active'; }
+    };
+
+    recog.onresult = (event) => {
+      interimTranscript = '';
+      for (let i = event.resultIndex; i < event.results.length; i++) {
+        const t = event.results[i][0].transcript;
+        if (event.results[i].isFinal) {
+          finalTranscript += (finalTranscript ? ' ' : '') + t;
+        } else {
+          interimTranscript += t;
+        }
+      }
+      target.value = finalTranscript + (interimTranscript ? ' ' + interimTranscript : '');
+    };
+
+    recog.onend = () => {
+      active = false;
+      btn.classList.remove('recording');
+      target.value = finalTranscript;
+      if (statusEl) { statusEl.textContent = '✓ Listo'; statusEl.className = 'stt-status success'; }
+      setTimeout(() => {
+        if (statusEl) { statusEl.textContent = 'Toca el micrófono para dictar'; statusEl.className = 'stt-status'; }
+      }, 2000);
+    };
+
+    recog.onerror = (e) => {
+      active = false;
+      btn.classList.remove('recording');
+      if (statusEl) {
+        statusEl.textContent = e.error === 'not-allowed' ? '🚫 Permiso denegado' :
+                               e.error === 'no-speech' ? 'Sin habla detectada' : 'Error: '+e.error;
+        statusEl.className = 'stt-status';
+      }
+    };
+
+    recog.start();
+  });
+}
+
+setupSpeech('btn-mic', 'obs-text', 'stt-status');
+
+// Data tab mics
+document.querySelectorAll('.data-mic').forEach(btn => {
+  const targetId = btn.getAttribute('data-target');
+  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SpeechRecognition) { btn.style.opacity='0.4'; return; }
+  let active = false;
+  let recog = null;
+  btn.addEventListener('click', () => {
+    if (active) { recog && recog.stop(); return; }
+    const target = document.getElementById(targetId);
+    recog = new SpeechRecognition();
+    recog.lang = 'es-AR';
+    recog.continuous = true;
+    recog.interimResults = true;
+    let final = target.value;
+    recog.onstart = () => { active = true; btn.classList.add('recording'); };
+    recog.onresult = e => {
+      let interim = '';
+      for (let i = e.resultIndex; i < e.results.length; i++) {
+        if (e.results[i].isFinal) final += ' ' + e.results[i][0].transcript;
+        else interim += e.results[i][0].transcript;
+      }
+      target.value = final + (interim ? ' '+interim : '');
+    };
+    recog.onend = () => { active = false; btn.classList.remove('recording'); target.value = final; };
+    recog.onerror = () => { active = false; btn.classList.remove('recording'); };
+    recog.start();
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════
+//  FILE IMPORT (KMZ, KML, GeoJSON)
+// ═══════════════════════════════════════════════════════════════
+async function importFile(file) {
+  const name = file.name.toLowerCase();
+  showToast('⏳ Procesando ' + file.name);
+
+  try {
+    let geojson = null;
+
+    if (name.endsWith('.geojson') || name.endsWith('.json')) {
+      const text = await file.text();
+      geojson = JSON.parse(text);
+
+    } else if (name.endsWith('.kml')) {
+      const text = await file.text();
+      const dom = new DOMParser().parseFromString(text, 'text/xml');
+      geojson = toGeoJSON.kml(dom);
+
+    } else if (name.endsWith('.kmz')) {
+      const buf = await file.arrayBuffer();
+      const zip = await JSZip.loadAsync(buf);
+      let kmlFile = null;
+      zip.forEach((path, f) => {
+        if (path.toLowerCase().endsWith('.kml') && !kmlFile) kmlFile = f;
+      });
+      if (!kmlFile) throw new Error('KMZ sin archivo KML');
+      const kmlText = await kmlFile.async('string');
+      const dom = new DOMParser().parseFromString(kmlText, 'text/xml');
+      geojson = toGeoJSON.kml(dom);
+
+    } else if (name.endsWith('.zip')) {
+      // Possible Shapefile zip — inform user
+      showToast('ℹ SHP: convierte a GeoJSON con QGIS y reimporta');
+      return;
+    } else {
+      showToast('❌ Formato no soportado directamente');
+      return;
+    }
+
+    if (!geojson || !geojson.features) {
+      showToast('❌ Archivo sin geometrías válidas');
+      return;
+    }
+
+    let added = 0;
+    geojson.features.forEach((feat, i) => {
+      if (!feat.geometry) return;
+      const props = feat.properties || {};
+      const lotName = props.name || props.Name || props.NOMBRE || props.id || `Lote ${STATE.lots.length + i + 1}`;
+      const lot = {
+        id: Date.now().toString() + i,
+        name: lotName,
+        geojson: feat,
+        data: {},
+        observations: [],
+        area: calcArea(feat)
+      };
+      STATE.lots.push(lot);
+      added++;
+    });
+
+    renderLots();
+    renderLotList();
+    saveState();
+    showToast(`✅ ${added} lote(s) importados de ${file.name}`);
+
+    if (STATE.lots.length > 0) {
+      try {
+        const all = L.geoJSON({ type:'FeatureCollection', features: STATE.lots.map(l=>l.geojson) });
+        map.flyToBounds(all.getBounds(), { padding: [30,30], duration: 1 });
+      } catch(e){}
+    }
+
+    // Switch to lots tab
+    switchTab('lots');
+  } catch(e) {
+    console.error(e);
+    showToast('❌ Error al importar: ' + e.message);
+  }
+}
+
+// File input
+document.getElementById('file-input').addEventListener('change', async e => {
+  for (const file of e.target.files) await importFile(file);
+  e.target.value = '';
+});
+
+// Drag & drop
+const uploadZone = document.getElementById('upload-zone');
+uploadZone.addEventListener('dragover', e => { e.preventDefault(); uploadZone.classList.add('drag-over'); });
+uploadZone.addEventListener('dragleave', () => uploadZone.classList.remove('drag-over'));
+uploadZone.addEventListener('drop', async e => {
+  e.preventDefault();
+  uploadZone.classList.remove('drag-over');
+  for (const file of e.dataTransfer.files) await importFile(file);
+});
+uploadZone.addEventListener('click', () => document.getElementById('file-input').click());
+document.getElementById('btn-upload-header').addEventListener('click', () => {
+  switchTab('import');
+  document.getElementById('sidebar').classList.add('open');
+});
+
+// ═══════════════════════════════════════════════════════════════
+//  DEMO DATA
+// ═══════════════════════════════════════════════════════════════
+document.getElementById('btn-load-demo').addEventListener('click', () => {
+  const base = [-65.41, -24.78];
+  const demoLots = [
+    { name: 'Lote Norte A', dx:0.000, dy:0.005, w:0.008, h:0.005, crop:'Soja', pheno:'Floración' },
+    { name: 'Lote Norte B', dx:0.009, dy:0.005, w:0.007, h:0.005, crop:'Maíz', pheno:'Vegetativo' },
+    { name: 'Lote Sur A',   dx:0.000, dy:-0.001, w:0.009, h:0.005, crop:'Trigo', pheno:'Maduración' },
+    { name: 'Lote Sur B',   dx:0.010, dy:-0.001, w:0.006, h:0.005, crop:'Soja', pheno:'Emergencia' },
+    { name: 'Lote Este',    dx:0.017, dy:0.003, w:0.005, h:0.007, crop:'Girasol', pheno:'Floración' },
+  ];
+
+  demoLots.forEach((d, i) => {
+    const [cx, cy] = [base[0]+d.dx, base[1]+d.dy];
+    const coords = [
+      [cx,cy], [cx+d.w,cy], [cx+d.w,cy+d.h], [cx,cy+d.h], [cx,cy]
+    ];
+    const lot = {
+      id: 'demo_'+i,
+      name: d.name,
+      geojson: {
+        type: 'Feature',
+        geometry: { type: 'Polygon', coordinates: [coords] },
+        properties: { name: d.name }
+      },
+      data: { crop: d.crop, phenology: d.pheno, owner: 'Juan García' },
+      observations: i === 0 ? [
+        { id:'o1', text:'Se observan manchas amarillas en hojas del tercio inferior. Posible deficiencia de nitrógeno.', category:'plagas', urgency:'media', date: new Date(Date.now()-86400000*2).toISOString(), author:'Carlos M.' },
+        { id:'o2', text:'Riego completado, caudal normal.', category:'riego', urgency:'normal', date: new Date(Date.now()-86400000).toISOString(), author:'Juan G.' }
+      ] : [],
+      area: d.w * d.h * 111320 * 111320 / 10000
+    };
+    STATE.lots.push(lot);
+  });
+
+  renderLots();
+  renderLotList();
+  renderRecordsList();
+  saveState();
+  showToast('✅ Finca demo cargada (5 lotes)');
+  switchTab('lots');
+
+  try {
+    const all = L.geoJSON({ type:'FeatureCollection', features: STATE.lots.map(l=>l.geojson) });
+    map.flyToBounds(all.getBounds(), { padding: [40,40], duration: 1 });
+  } catch(e){}
+});
+
+// ═══════════════════════════════════════════════════════════════
+//  DRAW MODE (crear lote manualmente)
+// ═══════════════════════════════════════════════════════════════
+let drawMarkers = [];
+
+document.getElementById('btn-add-lot').addEventListener('click', () => {
+  document.getElementById('modal-drawing').classList.add('open');
+});
+
+document.getElementById('btn-start-drawing').addEventListener('click', () => {
+  const lotName = document.getElementById('draw-lot-name').value.trim() ||
+                  `Lote ${STATE.lots.length + 1}`;
+  document.getElementById('modal-drawing').classList.remove('open');
+  STATE.drawMode = true;
+  STATE.drawPoints = [];
+  drawMarkers = [];
+  document.getElementById('status-text').textContent = '✏ Modo dibujo — clic para agregar puntos, doble clic para finalizar';
+  map.getContainer().style.cursor = 'crosshair';
+
+  const clickHandler = (e) => {
+    const pt = [e.latlng.lng, e.latlng.lat];
+    STATE.drawPoints.push(pt);
+    const m = L.circleMarker(e.latlng, { radius: 5, color: '#5a9e5a', fillColor: '#5a9e5a', fillOpacity: 1, weight: 1 }).addTo(map);
+    drawMarkers.push(m);
+    if (STATE.drawPolyline) map.removeLayer(STATE.drawPolyline);
+    if (STATE.drawPoints.length > 1) {
+      STATE.drawPolyline = L.polyline(STATE.drawPoints.map(p => [p[1],p[0]]), { color: '#5a9e5a', weight: 2, dashArray: '4' }).addTo(map);
+    }
+  };
+
+  const dblHandler = () => {
+    if (STATE.drawPoints.length < 3) { showToast('⚠ Necesitás al menos 3 puntos'); return; }
+    STATE.drawMode = false;
+    map.off('click', clickHandler);
+    map.off('dblclick', dblHandler);
+    map.getContainer().style.cursor = '';
+    document.getElementById('status-text').textContent = 'Listo';
+
+    if (STATE.drawPolyline) map.removeLayer(STATE.drawPolyline);
+    drawMarkers.forEach(m => map.removeLayer(m));
+
+    const pts = [...STATE.drawPoints, STATE.drawPoints[0]];
+    const lot = {
+      id: Date.now().toString(),
+      name: lotName,
+      geojson: { type:'Feature', geometry:{ type:'Polygon', coordinates:[pts] }, properties:{name:lotName} },
+      data: {},
+      observations: [],
+      area: calcPolygonArea(pts)
+    };
+    STATE.lots.push(lot);
+    renderLots();
+    renderLotList();
+    saveState();
+    showToast(`✅ Lote "${lotName}" creado`);
+    openLotDetail(lot.id);
+  };
+
+  map.on('click', clickHandler);
+  map.on('dblclick', dblHandler);
+});
+
+document.getElementById('btn-cancel-drawing').addEventListener('click', () => {
+  document.getElementById('modal-drawing').classList.remove('open');
+});
+document.getElementById('btn-create-manual').addEventListener('click', () => {
+  const n = document.getElementById('new-lot-name').value;
+  if (n) document.getElementById('draw-lot-name').value = n;
+  document.getElementById('modal-drawing').classList.add('open');
+});
+
+// ═══════════════════════════════════════════════════════════════
+//  EXPORT
+// ═══════════════════════════════════════════════════════════════
+document.getElementById('btn-export-header').addEventListener('click', () => {
+  document.getElementById('modal-export').classList.add('open');
+});
+document.getElementById('btn-close-export').addEventListener('click', () => {
+  document.getElementById('modal-export').classList.remove('open');
+});
+
+document.getElementById('exp-json').addEventListener('click', () => {
+  const fc = { type:'FeatureCollection', features: STATE.lots.map(lot => ({
+    ...lot.geojson,
+    properties: { ...lot.geojson.properties, campoapp_data: lot.data, campoapp_observations: lot.observations, area_ha: lot.area }
+  }))};
+  download('campoapp_export.geojson', JSON.stringify(fc, null, 2), 'application/geo+json');
+  showToast('✅ GeoJSON exportado');
+});
+
+document.getElementById('exp-csv').addEventListener('click', () => {
+  const rows = [['Lote','Fecha','Categoría','Urgencia','Observación','Autor']];
+  STATE.lots.forEach(lot => {
+    (lot.observations||[]).forEach(obs => {
+      rows.push([lot.name, formatDate(obs.date), obs.category, obs.urgency, `"${obs.text.replace(/"/g,'""')}"`, obs.author||'']);
+    });
+  });
+  download('campoapp_registros.csv', rows.map(r=>r.join(',')).join('\n'), 'text/csv');
+  showToast('✅ CSV exportado');
+});
+
+document.getElementById('exp-kml').addEventListener('click', () => {
+  let kml = `<?xml version="1.0" encoding="UTF-8"?><kml xmlns="http://www.opengis.net/kml/2.2"><Document><name>CampoApp</name>`;
+  STATE.lots.forEach(lot => {
+    const obs = (lot.observations||[]).map(o => `${formatDate(o.date)} [${o.category}]: ${o.text}`).join('\n');
+    const coords = (lot.geojson.geometry.coordinates[0]||[]).map(p => p.join(',')).join(' ');
+    kml += `<Placemark><name>${lot.name}</name><description><![CDATA[${obs}]]></description><Polygon><outerBoundaryIs><LinearRing><coordinates>${coords}</coordinates></LinearRing></outerBoundaryIs></Polygon></Placemark>`;
+  });
+  kml += `</Document></kml>`;
+  download('campoapp.kml', kml, 'application/vnd.google-earth.kml+xml');
+  showToast('✅ KML exportado');
+});
+
+document.getElementById('exp-share').addEventListener('click', () => {
+  const data = JSON.stringify({ lots: STATE.lots, exported: new Date().toISOString() });
+  navigator.clipboard.writeText(data).then(() => showToast('✅ Copiado al portapapeles')).catch(() => showToast('❌ No se pudo copiar'));
+  document.getElementById('modal-export').classList.remove('open');
+});
+
+// ═══════════════════════════════════════════════════════════════
+//  BASEMAP TOGGLE
+// ═══════════════════════════════════════════════════════════════
+document.getElementById('btn-basemap').addEventListener('click', () => {
+  basemaps[STATE.basemap].layer.remove();
+  STATE.basemap = (STATE.basemap + 1) % basemaps.length;
+  basemaps[STATE.basemap].layer.addTo(map);
+  document.getElementById('btn-basemap').textContent = basemaps[STATE.basemap].name;
+  showToast('Capa: ' + basemaps[STATE.basemap].name);
+});
+
+// ═══════════════════════════════════════════════════════════════
+//  LOCATE
+// ═══════════════════════════════════════════════════════════════
+document.getElementById('btn-locate').addEventListener('click', () => {
+  if (!navigator.geolocation) { showToast('❌ GPS no disponible'); return; }
+  showToast('📍 Buscando ubicación...');
+  navigator.geolocation.getCurrentPosition(pos => {
+    const { latitude, longitude, accuracy } = pos.coords;
+    map.flyTo([latitude, longitude], 16, { duration: 1 });
+    L.circleMarker([latitude, longitude], {
+      radius: 8, color: '#5a9e5a', fillColor: '#8dc88d', fillOpacity: 0.8, weight: 2
+    }).bindPopup(`Tu ubicación (±${Math.round(accuracy)}m)`).addTo(map).openPopup();
+    showToast(`📍 Ubicado (±${Math.round(accuracy)}m)`);
+  }, err => showToast('❌ GPS: ' + err.message));
+});
+
+// ═══════════════════════════════════════════════════════════════
+//  PHOTOS
+// ═══════════════════════════════════════════════════════════════
+document.getElementById('photo-input').addEventListener('change', e => {
+  const grid = document.getElementById('photo-grid');
+  Array.from(e.target.files).forEach(file => {
+    const reader = new FileReader();
+    reader.onload = ev => {
+      const img = document.createElement('img');
+      img.src = ev.target.result;
+      img.style.cssText = 'width:100%;aspect-ratio:1;object-fit:cover;border-radius:8px;border:1px solid var(--border)';
+      grid.appendChild(img);
+    };
+    reader.readAsDataURL(file);
+  });
+  e.target.value = '';
+  showToast('✅ Foto(s) agregada(s)');
+});
+
+// ═══════════════════════════════════════════════════════════════
+//  TABS
+// ═══════════════════════════════════════════════════════════════
+function switchTab(tabName) {
+  document.querySelectorAll('#main-tabs .tab').forEach(t => {
+    t.classList.toggle('active', t.dataset.tab === tabName);
+  });
+  ['lots','records','import'].forEach(t => {
+    const el = document.getElementById('tab-'+t);
+    if (el) el.classList.toggle('hidden', t !== tabName);
+  });
+  if (tabName === 'records') renderRecordsList();
+}
+
+document.querySelectorAll('#main-tabs .tab').forEach(tab => {
+  tab.addEventListener('click', () => switchTab(tab.dataset.tab));
+});
+
+document.querySelectorAll('#detail-tabs .tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('#detail-tabs .tab').forEach(t => t.classList.remove('active'));
+    tab.classList.add('active');
+    ['observations','data','photos'].forEach(t => {
+      const el = document.getElementById('dtab-'+t);
+      if (el) el.classList.toggle('hidden', t !== tab.dataset.dtab);
+    });
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════
+//  BACK / DELETE
+// ═══════════════════════════════════════════════════════════════
+document.getElementById('btn-back').addEventListener('click', closeLotDetail);
+
+document.getElementById('btn-delete-lot').addEventListener('click', () => {
+  if (!STATE.selectedLot) return;
+  const lot = STATE.lots.find(l => l.id === STATE.selectedLot);
+  if (confirm(`¿Eliminar "${lot?.name}"?`)) {
+    STATE.lots = STATE.lots.filter(l => l.id !== STATE.selectedLot);
+    closeLotDetail();
+    saveState();
+    showToast('🗑 Lote eliminado');
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════
+//  SIDEBAR TOGGLE (mobile)
+// ═══════════════════════════════════════════════════════════════
+document.getElementById('btn-toggle-sidebar').addEventListener('click', () => {
+  document.getElementById('sidebar').classList.toggle('open');
+});
+
+// ═══════════════════════════════════════════════════════════════
+//  PERSISTENCE
+// ═══════════════════════════════════════════════════════════════
+function saveState() {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ lots: STATE.lots }));
+  } catch(e) { console.warn('Storage full', e); }
+}
+
+function loadState() {
+  try {
+    const saved = localStorage.getItem(STORAGE_KEY);
+    if (saved) {
+      const data = JSON.parse(saved);
+      STATE.lots = data.lots || [];
+      renderLots();
+      renderLotList();
+      if (STATE.lots.length > 0) {
+        try {
+          const all = L.geoJSON({ type:'FeatureCollection', features: STATE.lots.map(l=>l.geojson) });
+          map.fitBounds(all.getBounds(), { padding: [40,40] });
+        } catch(e){}
+      }
+    }
+  } catch(e) { console.warn('Load error', e); }
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  UTILS
+// ═══════════════════════════════════════════════════════════════
+function calcArea(feature) {
+  try {
+    const coords = feature.geometry.coordinates[0];
+    return calcPolygonArea(coords);
+  } catch(e) { return null; }
+}
+
+function calcPolygonArea(coords) {
+  let area = 0;
+  const n = coords.length;
+  for (let i = 0; i < n - 1; i++) {
+    const [x1, y1] = coords[i];
+    const [x2, y2] = coords[i+1];
+    area += (x2 - x1) * (y2 + y1);
+  }
+  const latRad = coords[0][1] * Math.PI / 180;
+  const mPerDegLon = 111320 * Math.cos(latRad);
+  const mPerDegLat = 111320;
+  return Math.abs(area) * 0.5 * mPerDegLon * mPerDegLat / 10000;
+}
+
+function formatDate(iso) {
+  if (!iso) return '';
+  const d = new Date(iso);
+  return d.toLocaleDateString('es-AR', { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit' });
+}
+
+function download(filename, content, mime) {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([content], { type: mime }));
+  a.download = filename;
+  a.click();
+}
+
+let toastQueue = [];
+function showToast(msg) {
+  const container = document.getElementById('toast-container');
+  const el = document.createElement('div');
+  el.className = 'toast';
+  el.textContent = msg;
+  container.appendChild(el);
+  setTimeout(() => el.classList.add('show'), 10);
+  setTimeout(() => {
+    el.classList.remove('show');
+    setTimeout(() => el.remove(), 300);
+  }, 2500);
+}
+
+function updateStatusBar() {
+  const total = STATE.lots.reduce((acc, l) => acc + (l.observations||[]).length, 0);
+  document.getElementById('status-lots').textContent = `${STATE.lots.length} lotes`;
+  document.getElementById('status-records').textContent = `${total} registros`;
+}
+
+// Online/offline
+window.addEventListener('online', () => {
+  STATE.isOnline = true;
+  document.getElementById('status-dot').classList.remove('offline');
+  document.getElementById('status-text').textContent = 'En línea';
+});
+window.addEventListener('offline', () => {
+  STATE.isOnline = false;
+  document.getElementById('status-dot').classList.add('offline');
+  document.getElementById('status-text').textContent = 'Sin conexión (datos guardados localmente)';
+});
+
+if (!navigator.onLine) {
+  document.getElementById('status-dot').classList.add('offline');
+  document.getElementById('status-text').textContent = 'Sin conexión';
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  INIT
+// ═══════════════════════════════════════════════════════════════
+loadState();
+updateStatusBar();
+</script>
+</body>
+</html>
